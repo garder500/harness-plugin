@@ -1,0 +1,12 @@
+# OS junk
+.DS_Store
+Thumbs.db
+
+# local sync of repo assets into the harness home (if you keep one)
+.dsh-sync/
+
+# credentials / secrets — never commit
+*.local.yml
+*.secret.yml
+.env
+.env.*
