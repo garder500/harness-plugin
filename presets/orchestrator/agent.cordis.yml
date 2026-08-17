@@ -1,0 +1,136 @@
+# Orchestrateur — conduit l'équipe à 4 rôles. Le protocole complet (phases,
+# gates, contrats d'artefacts) est dans docs/orchestration.md.
+#
+# Chaque row tool-subagent ci-dessous crée un sous-agent de rôle dont le
+# toolset est limité par `toolFilter.allow`. Les enfants héritent de la
+# composition de l'Orchestrateur PUIS sont filtrés par cet allow-list.
+#
+# NOTE DE CÂBLAGE : les noms listés dans `allow` doivent exister dans la
+# session enfant. Aujourd'hui seuls les tools fournis (read/write/edit/glob/
+# grep/pwsh/todo_write/ask_user_question/web_search) existent côté enfant.
+# Une fois les plugins de rôle empaquetés (packages npm installés dans le
+# profil), ajouter leurs noms aux listes : architect → tree_inspector,
+# ast_analyzer, diagram_renderer ; tester → run_tests, coverage_analyzer,
+# run_linter ; designer → visual_capture, design_tokens_parser, a11y_validator ;
+# developer → chunk_reader, grep_search.
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: |-
+      You are the ORCHESTRATOR of a modular 4-role development team running on the DeepSeek Harness. Your working directory is {{cwd}}.
+
+      ROLES: architect (system & backend, contracts), developer (core implementation), tester (QA, TDD, coverage, lint), designer (UI/UX, tokens, a11y, visual capture).
+
+      PROTOCOL (docs/orchestration.md):
+      1. Cadrage — subagent_architect writes specs/api-contract.md, subagent_designer writes specs/ui-contract.md; both sign specs/acceptance.md.
+      2. TDD — subagent_tester writes failing test suites in tests/ from the contracts only (red).
+      3. Code — subagent_developer implements in src/ until the suite is green.
+      4. Validation — subagent_designer captures visuals + a11y report; subagent_tester runs the full suite + coverage and blocks non-conforming merges.
+
+      Run the phases in order; each delegation must name its contract artifacts by exact path. Verify gates (red→green, coverage, lint) before advancing a phase. Use todo_write to track the phase state.
+
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+# ── shell / filesystem (tous rôles) ──────────────────────────────────────────
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  config:
+    fetch: false
+    searchTimeoutMs: 60000
+
+# ── suivi / questions ────────────────────────────────────────────────────────
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  config:
+    allowParallelInProgress: true
+
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+# ── délégation par rôle : chaque enfant ne voit QUE son allow-list ───────────
+- id: delegation
+  name: cordis:group
+  group: true
+  isolate:
+    workflowEngine: true
+  config:
+    - id: subagent-architect
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: subagent_architect
+        enableRunInBackground: false
+        maxDepth: provider-managed
+        toolFilter:
+          allow: [read, write, glob, grep, pwsh, todo_write, ask_user_question, web_search]
+
+    - id: subagent-developer
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: subagent_developer
+        enableRunInBackground: false
+        maxDepth: provider-managed
+        toolFilter:
+          allow: [read, write, edit, glob, grep, pwsh, todo_write, ask_user_question]
+
+    - id: subagent-tester
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: subagent_tester
+        enableRunInBackground: false
+        maxDepth: provider-managed
+        toolFilter:
+          allow: [read, write, glob, grep, pwsh, todo_write, ask_user_question]
+
+    - id: subagent-designer
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: subagent_designer
+        enableRunInBackground: false
+        maxDepth: provider-managed
+        toolFilter:
+          allow: [read, write, glob, grep, pwsh, todo_write, ask_user_question]
+
+    - id: workflow-worker-thread
+      name: '@deepseek-ai/dsh-workflow-worker-thread'
+      config:
+        provider: spawn
+
+    - id: tool-workflow
+      name: '@deepseek-ai/dsh-tool-workflow'
+
+# ── plan mode ────────────────────────────────────────────────────────────────
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'

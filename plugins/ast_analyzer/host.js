@@ -1,0 +1,249 @@
+// ast_analyzer — lightweight AST / dependency-graph scanner.
+// Walks a source tree, extracts imports/exports/declarations, and resolves
+// local dependency edges. Regex-based (a full AST would use tree-sitter or the
+// harness LSP seam); bounded reads — it never ingests whole files blindly.
+// Plain JavaScript for the dynamic Cordis Host half. No TS/JSX/import.
+return {
+  apply(ctx) {
+    const MAX_FILES = 100
+    const MAX_ENTRIES = 600
+    const MAX_FILE_BYTES = 256 * 1024
+    const EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.go', '.rs', '.java', '.php', '.d.ts']
+
+    const IMPORT_RE = {
+      // JavaScript / TypeScript family
+      'js': [
+        /import\s+(?:[\w*{}, \n]+?\s+from\s+)?['"]([^'"]+)['"]/gu,
+        /require\(\s*['"]([^'"]+)['"]\s*\)/gu,
+      ],
+      'py': [
+        /^from\s+([\w.]+)\s+import/gu,
+        /^import\s+([\w.]+)/gu,
+      ],
+      'go': [
+        /^\s*["']([^"']+)["']\s*$/gu,
+      ],
+    }
+    const DECL_RE = {
+      'js': /\b(?:export\s+)?(?:default\s+)?(?:class|function|interface|type|enum|const|let|var)\s+([A-Za-z_$][\w$]*)/gu,
+      'py': /^(?:class|def|async\s+def)\s+([A-Za-z_]\w*)/gu,
+      'go': /^(?:func|type|const|var)\s+([A-Za-z_]\w*)/gu,
+    }
+
+    function langOf(path) {
+      if (/\.(ts|tsx|mts|cts)$/u.test(path)) return 'js'
+      if (/\.(js|jsx|mjs|cjs)$/u.test(path)) return 'js'
+      if (/\.py$/u.test(path)) return 'py'
+      if (/\.go$/u.test(path)) return 'go'
+      return undefined
+    }
+
+    function render(value) {
+      const lines = [`${value.root} — ${value.files} file${value.files === 1 ? '' : 's'}, ${value.entries.length} symbol${value.entries.length === 1 ? '' : 's'}, ${value.edges.length} edge${value.edges.length === 1 ? '' : 's'}`]
+      for (const entry of value.entries) {
+        lines.push(`${entry.path}:${entry.line} ${entry.kind} ${entry.symbol}`)
+      }
+      if (value.edges.length > 0) {
+        lines.push('')
+        lines.push('edges:')
+        for (const edge of value.edges) lines.push(`  ${edge.from} -> ${edge.to} (${edge.kind})`)
+      }
+      if (value.truncated) lines.push('(analysis truncated — narrow path or raise max_files)')
+      return lines.join('\n')
+    }
+
+    const tool = harness.defineTool({
+      name: 'ast_analyzer',
+      description: 'Analyze a source tree: extract imports/exports/declarations and resolve the local dependency graph. Lightweight regex-based scanner (bounded reads, no whole-file ingestion) — for a full AST, use the LSP seam. Read-only.',
+      parameters: {
+        path: { type: 'string', required: true, description: 'Source directory to analyze; relative paths resolve against the session workspace.' },
+        max_files: { type: 'number', description: 'Maximum source files scanned (default 100, cap 500).' },
+        include_external: { type: 'boolean', description: 'Whether to emit edges for non-relative (external) imports (default true).' },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            root: { type: 'string', required: true },
+            files: { type: 'integer', required: true },
+            entries: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  path: { type: 'string', required: true },
+                  line: { type: 'integer', required: true },
+                  kind: { type: 'string', required: true },
+                  symbol: { type: 'string', required: true },
+                },
+              },
+            },
+            edges: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  from: { type: 'string', required: true },
+                  to: { type: 'string', required: true },
+                  kind: { type: 'string', required: true, enum: ['local', 'external'] },
+                },
+              },
+            },
+            truncated: { type: 'boolean', required: true },
+          },
+        },
+        render: (_args, value) => [{ type: 'text', text: render(value) }],
+      },
+      isConcurrencySafe: () => true,
+      async execute(args, exec) {
+        const fs = ctx.get('fs')
+        if (fs === undefined) throw new Error('ast_analyzer: filesystem service unavailable')
+        const cwd = exec.agent?.session.header.cwd
+        const target = await fs.resolve(args.path, {
+          ...(cwd !== undefined ? { cwd } : {}),
+          signal: exec.signal,
+        })
+        const info = await fs.stat(target, exec.signal)
+        if (info === undefined) throw new Error(`ast_analyzer: "${target.displayPath}" not found`)
+        if (info.type !== 'directory') throw new Error(`ast_analyzer: "${target.displayPath}" is not a directory`)
+        const maxFiles = Math.min(Math.max(1, Math.floor(args.max_files ?? MAX_FILES)), 500)
+        const includeExternal = args.include_external !== false
+
+        // Collect source files (bounded), skipping node_modules/.git/vendor.
+        const sources = []
+        const budget = { truncated: false }
+        const walk = async (dirTarget, displayPath) => {
+          if (sources.length >= maxFiles) { budget.truncated = true; return }
+          let list
+          try { list = await fs.listDir(dirTarget, exec.signal) } catch { budget.truncated = true; return }
+          for (const entry of list) {
+            if (sources.length >= maxFiles) { budget.truncated = true; break }
+            const path = displayPath + (displayPath.endsWith('/') || displayPath.endsWith('\\') ? '' : '/') + entry.name
+            if (entry.type === 'directory') {
+              if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'vendor' || entry.name === 'dist') continue
+              await walk(entry.target, path)
+            } else if (entry.type === 'file' && EXTENSIONS.some((ext) => entry.name.endsWith(ext))) {
+              sources.push({ target: entry.target, path, size: entry.size })
+            }
+          }
+        }
+        await walk(target, target.displayPath)
+
+        const entries = []
+        const edges = []
+        const byPath = new Set()
+        for (const source of sources) {
+          if (entries.length >= MAX_ENTRIES) { budget.truncated = true; break }
+          if (source.size !== undefined && source.size > MAX_FILE_BYTES) continue
+          let text
+          try { text = await fs.readText(source.target, exec.signal) } catch { continue }
+          const lang = langOf(source.path)
+          if (lang === undefined) continue
+          const lines = text.split(/\r?\n/)
+
+          // imports / requires
+          if (lang === 'js') {
+            for (let i = 0; i < lines.length && entries.length < MAX_ENTRIES; i++) {
+              for (const re of IMPORT_RE.js) {
+                re.lastIndex = 0
+                let m
+                while ((m = re.exec(lines[i])) !== null) {
+                  if (m[0].length === 0) { re.lastIndex++; continue }
+                  const spec = m[1]
+                  entries.push({ path: source.path, line: i + 1, kind: 'import', symbol: spec })
+                  const resolved = await resolveLocal(spec, source.path)
+                  if (resolved !== undefined) edges.push({ from: source.path, to: resolved, kind: 'local' })
+                  else if (includeExternal) edges.push({ from: source.path, to: `external:${spec}`, kind: 'external' })
+                  if (m[0].length === 0) re.lastIndex++
+                  break // one import per line is the norm; avoid duplicate edges
+                }
+              }
+            }
+          } else if (lang === 'py') {
+            for (let i = 0; i < lines.length && entries.length < MAX_ENTRIES; i++) {
+              IMPORT_RE.py[0].lastIndex = 0
+              IMPORT_RE.py[1].lastIndex = 0
+              const m = IMPORT_RE.py[0].exec(lines[i]) ?? IMPORT_RE.py[1].exec(lines[i])
+              if (m !== null) {
+                entries.push({ path: source.path, line: i + 1, kind: 'import', symbol: m[1] })
+                const resolved = await resolveLocal(m[1].split('.')[0] ?? m[1], source.path)
+                if (resolved !== undefined) edges.push({ from: source.path, to: resolved, kind: 'local' })
+                else if (includeExternal) edges.push({ from: source.path, to: `external:${m[1]}`, kind: 'external' })
+              }
+            }
+          } else if (lang === 'go') {
+            // grouped imports sit on their own lines inside an import block
+            for (let i = 0; i < lines.length && entries.length < MAX_ENTRIES; i++) {
+              IMPORT_RE.go[0].lastIndex = 0
+              const m = IMPORT_RE.go[0].exec(lines[i])
+              if (m !== null) {
+                entries.push({ path: source.path, line: i + 1, kind: 'import', symbol: m[1] })
+                if (includeExternal) edges.push({ from: source.path, to: `external:${m[1]}`, kind: 'external' })
+              }
+            }
+          }
+
+          // declarations
+          const declRe = DECL_RE[lang]
+          if (declRe !== undefined) {
+            for (let i = 0; i < lines.length && entries.length < MAX_ENTRIES; i++) {
+              declRe.lastIndex = 0
+              let m
+              while ((m = declRe.exec(lines[i])) !== null) {
+                entries.push({ path: source.path, line: i + 1, kind: 'declaration', symbol: m[1] })
+                if (m[0].length === 0) declRe.lastIndex++
+              }
+            }
+          }
+          byPath.add(source.path)
+        }
+
+        async function resolveLocal(spec, fromPath) {
+          if (!/^\.{1,2}[\\/]/u.test(spec)) return undefined
+          const dir = fromPath.replace(/[\\/][^\\/]+$/u, '')
+          const base = dir + '/' + spec.replace(/\\/gu, '/')
+          for (const ext of EXTENSIONS) {
+            const candidate = base.endsWith(ext) ? base : base + ext
+            try {
+              const t = await fs.resolve(candidate, { signal: exec.signal })
+              const s = await fs.stat(t, exec.signal)
+              if (s !== undefined && s.type === 'file') return t.displayPath
+            } catch { /* try next candidate */ }
+          }
+          for (const ext of ['.ts', '.tsx', '.js', '.jsx', '.py']) {
+            const candidate = `${base}/index${ext}`
+            try {
+              const t = await fs.resolve(candidate, { signal: exec.signal })
+              const s = await fs.stat(t, exec.signal)
+              if (s !== undefined && s.type === 'file') return t.displayPath
+            } catch { /* try next */ }
+          }
+          return undefined
+        }
+
+        // Deduplicate edges, keep first-seen order.
+        const seenEdges = new Set()
+        const uniqueEdges = []
+        for (const edge of edges) {
+          const key = `${edge.from}\u0000${edge.to}\u0000${edge.kind}`
+          if (seenEdges.has(key)) continue
+          seenEdges.add(key)
+          uniqueEdges.push(edge)
+        }
+
+        return {
+          root: target.displayPath,
+          files: sources.length,
+          entries,
+          edges: uniqueEdges,
+          truncated: budget.truncated,
+        }
+      },
+    })
+
+    ctx.effect(() => harness.registerTool(ctx, tool))
+  },
+}

@@ -1,0 +1,307 @@
+// test_runner — QA toolset for the Tester role.
+// run_tests: execute the detected test framework (vitest/jest/pytest/npm).
+// coverage_analyzer: run the suite with coverage and extract the summary.
+// run_linter: run the detected linter (eslint/oxlint/ruff/pylint).
+// All commands run through the harness shell (ctx.shell) in the session
+// workspace; bounded stdout, graceful "not detected / failed" results.
+// Plain JavaScript for the dynamic Cordis Host half. No TS/JSX/import.
+return {
+  apply(ctx) {
+    const DEFAULT_TIMEOUT_MS = 180000
+    const MAX_TIMEOUT_MS = 600000
+    const OUTPUT_MAX_BYTES = 32768
+
+    async function runCommand(exec, command, timeoutMs) {
+      const shell = ctx.get('shell')
+      if (shell === undefined) throw new Error('test_runner: shell service unavailable')
+      const cwd = exec.agent?.session.header.cwd
+      const spec = shell.resolve({
+        command,
+        ...(cwd !== undefined ? { workdir: cwd } : {}),
+        timeoutMs,
+        stdoutMaxBytes: OUTPUT_MAX_BYTES,
+        signal: exec.signal,
+      })
+      return shell.run(spec)
+    }
+
+    async function hasFile(fs, cwd, name) {
+      try {
+        const t = await fs.resolve(name, { ...(cwd !== undefined ? { cwd } : {}), signal: undefined })
+        const info = await fs.stat(t, undefined)
+        return info !== undefined && info.type === 'file'
+      } catch {
+        return false
+      }
+    }
+
+    async function readPackageJson(fs, cwd) {
+      try {
+        const t = await fs.resolve('package.json', { ...(cwd !== undefined ? { cwd } : {}), signal: undefined })
+        const info = await fs.stat(t, undefined)
+        if (info === undefined || info.type !== 'file') return undefined
+        const text = await fs.readText(t, undefined)
+        return JSON.parse(text)
+      } catch {
+        return undefined
+      }
+    }
+
+    async function detectFramework(fs, cwd) {
+      const names = ['vitest.config.ts', 'vitest.config.js', 'vitest.config.mjs', 'vitest.config.cts']
+      for (const name of names) if (await hasFile(fs, cwd, name)) return 'vitest'
+      const jestNames = ['jest.config.ts', 'jest.config.js', 'jest.config.mjs', 'jest.config.cjs', 'jest.config.json']
+      for (const name of jestNames) if (await hasFile(fs, cwd, name)) return 'jest'
+      if (await hasFile(fs, cwd, 'pytest.ini') || await hasFile(fs, cwd, 'tox.ini')) return 'pytest'
+      if (await hasFile(fs, cwd, 'pyproject.toml')) {
+        const t = await fs.resolve('pyproject.toml', { ...(cwd !== undefined ? { cwd } : {}), signal: undefined })
+        const text = await fs.readText(t, undefined)
+        if (text.includes('[tool.pytest')) return 'pytest'
+      }
+      const pkg = await readPackageJson(fs, cwd)
+      if (pkg !== undefined) {
+        const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) }
+        if (deps.vitest !== undefined) return 'vitest'
+        if (deps.jest !== undefined) return 'jest'
+        if (typeof pkg.scripts?.test === 'string') return 'node'
+      }
+      return undefined
+    }
+
+    async function detectLinter(fs, cwd) {
+      const eslintNames = ['eslint.config.ts', 'eslint.config.js', 'eslint.config.mjs', 'eslint.config.cjs', '.eslintrc.js', '.eslintrc.cjs', '.eslintrc.json', '.eslintrc.yml']
+      for (const name of eslintNames) if (await hasFile(fs, cwd, name)) return 'eslint'
+      if (await hasFile(fs, cwd, '.oxlintrc.json')) return 'oxlint'
+      if (await hasFile(fs, cwd, 'ruff.toml') || await hasFile(fs, cwd, '.ruff.toml')) return 'ruff'
+      if (await hasFile(fs, cwd, '.pylintrc') || await hasFile(fs, cwd, 'pylintrc')) return 'pylint'
+      const pkg = await readPackageJson(fs, cwd)
+      if (pkg !== undefined) {
+        const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) }
+        if (deps.eslint !== undefined) return 'eslint'
+        if (deps.oxlint !== undefined) return 'oxlint'
+      }
+      return undefined
+    }
+
+    function quote(value) {
+      return `"${String(value).replace(/"/gu, '\\"')}"`
+    }
+
+    function tail(text, maxLines) {
+      const lines = text.split(/\r?\n/)
+      return lines.slice(-maxLines).join('\n')
+    }
+
+    function renderBase(value) {
+      const lines = [`${value.command}`]
+      if (value.note !== undefined) lines.push(`note: ${value.note}`)
+      lines.push(`exit: ${value.exitCode ?? 'n/a'}`)
+      if (value.stdout.trim().length > 0) lines.push('', value.stdout)
+      if (value.stderr.trim().length > 0) lines.push('', `[stderr]\n${value.stderr}`)
+      if (value.stdoutTruncated) lines.push('(stdout truncated — rerun with narrower scope)')
+      return lines.join('\n')
+    }
+
+    const runTestsTool = harness.defineTool({
+      name: 'run_tests',
+      description: 'Run the test suite with the detected framework (vitest, jest, pytest, or npm test) in the given directory. Returns exit code, stdout, and stderr (bounded). Use the filter to target one test. Detects vitest.config.*, jest.config.*, pytest.ini/pyproject, or the package.json test script.',
+      parameters: {
+        path: { type: 'string', description: 'Directory to run tests in; defaults to the session workspace.' },
+        framework: { type: 'string', enum: ['auto', 'vitest', 'jest', 'pytest', 'node'], description: 'Framework override (default auto).' },
+        filter: { type: 'string', description: 'Optional test-name pattern (vitest -t / jest --testNamePattern / pytest -k).' },
+        timeout_ms: { type: 'number', description: `Command timeout (default ${DEFAULT_TIMEOUT_MS}ms, cap ${MAX_TIMEOUT_MS}ms).` },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            framework: { type: 'string' },
+            command: { type: 'string', required: true },
+            exitCode: { type: 'integer' },
+            passed: { type: 'boolean' },
+            stdout: { type: 'string', required: true },
+            stderr: { type: 'string', required: true },
+            stdoutTruncated: { type: 'boolean', required: true },
+            note: { type: 'string' },
+          },
+        },
+        render: (_args, value) => [{ type: 'text', text: renderBase(value) }],
+      },
+      isConcurrencySafe: () => true,
+      async execute(args, exec) {
+        const fs = ctx.get('fs')
+        if (fs === undefined) throw new Error('test_runner: filesystem service unavailable')
+        const cwd = args.path ?? exec.agent?.session.header.cwd
+        const timeoutMs = Math.min(Math.max(1000, Math.floor(args.timeout_ms ?? DEFAULT_TIMEOUT_MS)), MAX_TIMEOUT_MS)
+        let framework = args.framework === 'auto' || args.framework === undefined ? undefined : args.framework
+        if (framework === undefined) framework = await detectFramework(fs, cwd)
+        if (framework === undefined) {
+          return {
+            command: '(none)',
+            passed: false,
+            stdout: '',
+            stderr: '',
+            stdoutTruncated: false,
+            note: 'no test framework detected (looked for vitest/jest/pytest configs and a package.json test script)',
+          }
+        }
+        const filter = typeof args.filter === 'string' && args.filter.length > 0 ? args.filter : undefined
+        let command
+        if (framework === 'vitest') command = `npx vitest run${filter !== undefined ? ` -t ${quote(filter)}` : ''}`
+        else if (framework === 'jest') command = `npx jest${filter !== undefined ? ` --testNamePattern=${quote(filter)}` : ''}`
+        else if (framework === 'pytest') command = `python -m pytest -q${filter !== undefined ? ` -k ${quote(filter)}` : ''}`
+        else command = `npm test${filter !== undefined ? ' # filter ignored for npm test' : ''}`
+        const result = await runCommand(exec, command, timeoutMs)
+        return {
+          ...(framework !== undefined ? { framework } : {}),
+          command,
+          ...(result.exitCode !== null ? { exitCode: result.exitCode } : {}),
+          passed: result.exitCode === 0,
+          stdout: tail(result.stdout.text, 120),
+          stderr: tail(result.stderr.text, 60),
+          stdoutTruncated: result.stdout.truncated,
+        }
+      },
+    })
+
+    const coverageTool = harness.defineTool({
+      name: 'coverage_analyzer',
+      description: 'Run the test suite with coverage enabled and extract the summary table (per-file and "All files" lines). Frameworks: vitest (--coverage), jest (--coverage), pytest (--cov).',
+      parameters: {
+        path: { type: 'string', description: 'Directory to run in; defaults to the session workspace.' },
+        framework: { type: 'string', enum: ['auto', 'vitest', 'jest', 'pytest'], description: 'Framework override (default auto).' },
+        timeout_ms: { type: 'number', description: `Command timeout (default ${DEFAULT_TIMEOUT_MS}ms, cap ${MAX_TIMEOUT_MS}ms).` },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            framework: { type: 'string' },
+            command: { type: 'string', required: true },
+            exitCode: { type: 'integer' },
+            summary: { type: 'array', items: { type: 'string' } },
+            stdout: { type: 'string', required: true },
+            stderr: { type: 'string', required: true },
+            stdoutTruncated: { type: 'boolean', required: true },
+            note: { type: 'string' },
+          },
+        },
+        render: (_args, value) => [{
+          type: 'text',
+          text: `${value.command}\n${value.note !== undefined ? `note: ${value.note}\n` : ''}exit: ${value.exitCode ?? 'n/a'}${value.summary.length > 0 ? `\n\n${value.summary.join('\n')}` : ''}${value.stderr.trim().length > 0 ? `\n\n[stderr]\n${value.stderr}` : ''}`,
+        }],
+      },
+      isConcurrencySafe: () => true,
+      async execute(args, exec) {
+        const fs = ctx.get('fs')
+        if (fs === undefined) throw new Error('test_runner: filesystem service unavailable')
+        const cwd = args.path ?? exec.agent?.session.header.cwd
+        const timeoutMs = Math.min(Math.max(1000, Math.floor(args.timeout_ms ?? DEFAULT_TIMEOUT_MS)), MAX_TIMEOUT_MS)
+        let framework = args.framework === 'auto' || args.framework === undefined ? undefined : args.framework
+        if (framework === undefined) framework = await detectFramework(fs, cwd)
+        if (framework === 'node' || framework === undefined) {
+          return {
+            ...(framework !== undefined ? { framework } : {}),
+            command: '(none)',
+            summary: [],
+            stdout: '',
+            stderr: '',
+            stdoutTruncated: false,
+            note: framework === 'node' ? 'npm test has no standard coverage switch; install vitest/jest/pytest or run the coverage command manually' : 'no coverage-capable framework detected',
+          }
+        }
+        const command = framework === 'vitest'
+          ? 'npx vitest run --coverage'
+          : framework === 'jest'
+            ? 'npx jest --coverage'
+            : 'python -m pytest --cov --cov-report=term'
+        const result = await runCommand(exec, command, timeoutMs)
+        const combined = `${result.stdout.text}\n${result.stderr.text}`
+        const summary = combined
+          .split(/\r?\n/)
+          .filter((line) => /(?:All files|%\s*(?:Stmts|Statements|Covered)|File\s*\|)/u.test(line) && /%|\|/u.test(line))
+          .slice(-40)
+        return {
+          ...(framework !== undefined ? { framework } : {}),
+          command,
+          ...(result.exitCode !== null ? { exitCode: result.exitCode } : {}),
+          summary,
+          stdout: tail(result.stdout.text, 100),
+          stderr: tail(result.stderr.text, 40),
+          stdoutTruncated: result.stdout.truncated,
+        }
+      },
+    })
+
+    const lintTool = harness.defineTool({
+      name: 'run_linter',
+      description: 'Run the detected linter (eslint, oxlint, ruff, pylint) over the given directory and estimate the issue count. Detects config files and package.json dependencies.',
+      parameters: {
+        path: { type: 'string', description: 'Directory to lint; defaults to the session workspace.' },
+        tool: { type: 'string', enum: ['auto', 'eslint', 'oxlint', 'ruff', 'pylint'], description: 'Linter override (default auto).' },
+        timeout_ms: { type: 'number', description: `Command timeout (default ${DEFAULT_TIMEOUT_MS}ms, cap ${MAX_TIMEOUT_MS}ms).` },
+      },
+      output: {
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            tool: { type: 'string' },
+            command: { type: 'string', required: true },
+            exitCode: { type: 'integer' },
+            issues: { type: 'integer' },
+            stdout: { type: 'string', required: true },
+            stderr: { type: 'string', required: true },
+            stdoutTruncated: { type: 'boolean', required: true },
+            note: { type: 'string' },
+          },
+        },
+        render: (_args, value) => [{ type: 'text', text: renderBase(value) }],
+      },
+      isConcurrencySafe: () => true,
+      async execute(args, exec) {
+        const fs = ctx.get('fs')
+        if (fs === undefined) throw new Error('test_runner: filesystem service unavailable')
+        const cwd = args.path ?? exec.agent?.session.header.cwd
+        const timeoutMs = Math.min(Math.max(1000, Math.floor(args.timeout_ms ?? DEFAULT_TIMEOUT_MS)), MAX_TIMEOUT_MS)
+        let tool = args.tool === 'auto' || args.tool === undefined ? undefined : args.tool
+        if (tool === undefined) tool = await detectLinter(fs, cwd)
+        if (tool === undefined) {
+          return {
+            command: '(none)',
+            issues: 0,
+            stdout: '',
+            stderr: '',
+            stdoutTruncated: false,
+            note: 'no linter detected (looked for eslint/oxlint/ruff/pylint configs and dependencies)',
+          }
+        }
+        const command = tool === 'eslint'
+          ? 'npx eslint .'
+          : tool === 'oxlint'
+            ? 'npx oxlint .'
+            : tool === 'ruff'
+              ? 'python -m ruff check .'
+              : 'python -m pylint .'
+        const result = await runCommand(exec, command, timeoutMs)
+        const combined = `${result.stdout.text}\n${result.stderr.text}`
+        const issues = (combined.match(/(?:error|warning|problem|violation)/giu) ?? []).length
+        return {
+          ...(tool !== undefined ? { tool } : {}),
+          command,
+          ...(result.exitCode !== null ? { exitCode: result.exitCode } : {}),
+          issues,
+          stdout: tail(result.stdout.text, 120),
+          stderr: tail(result.stderr.text, 40),
+          stdoutTruncated: result.stdout.truncated,
+        }
+      },
+    })
+
+    ctx.effect(() => harness.registerTool(ctx, runTestsTool))
+    ctx.effect(() => harness.registerTool(ctx, coverageTool))
+    ctx.effect(() => harness.registerTool(ctx, lintTool))
+  },
+}

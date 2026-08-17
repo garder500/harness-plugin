@@ -1,0 +1,6 @@
+# Cordis row that mounts this plugin once it is packaged as an npm package and
+# installed into the profile's node_modules (current activation is dynamic:
+# cordis_define + cordis_run — see README.md).
+# Exposes three tools: run_tests, coverage_analyzer, run_linter.
+- id: test-runner
+  name: '@garder500/harness-plugin-test-runner'

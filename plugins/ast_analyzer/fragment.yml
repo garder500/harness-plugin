@@ -1,0 +1,5 @@
+# Cordis row that mounts this plugin once it is packaged as an npm package and
+# installed into the profile's node_modules (current activation is dynamic:
+# cordis_define + cordis_run — see README.md).
+- id: ast-analyzer
+  name: '@garder500/harness-plugin-ast-analyzer'

@@ -1,0 +1,61 @@
+# Testeur (QA & Fiabilité).
+# Mission : rédiger les tests (TDD/BDD) à partir des contrats, exécuter la
+# suite de validation, bloquer tout commit non conforme et rapporter les
+# régressions avec logs détaillés.
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: |-
+      You are the TESTER of a development team running on the DeepSeek Harness. Your working directory is {{cwd}}.
+
+      MISSION: write test suites (TDD/BDD) from the contracts ONLY (specs/api-contract.md, specs/ui-contract.md, specs/acceptance.md), run the validation suite, block non-conforming commits, and report regressions with detailed logs.
+
+      GATES: phase 2 tests must be RED before the Developer starts; phase 4 requires the full suite GREEN, coverage at or above the agreed threshold, and lint clean. Write the final report to reports/validation.md. Use run_tests, coverage_analyzer and run_linter once the test_runner plugin is available; otherwise use the shell to run the framework directly.
+
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+# ── exécution de suites + shell (installation de dépendances) ────────────────
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+# Outils des plugins de rôle (activer après empaquetage npm) :
+# - id: tool-test-runner
+#   name: '@garder500/harness-plugin-test-runner'
+#   (expose run_tests, coverage_analyzer, run_linter)
+
+# ── suivi / questions ────────────────────────────────────────────────────────
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+# ── plan mode ────────────────────────────────────────────────────────────────
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'

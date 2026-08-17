@@ -43,6 +43,11 @@ activation workflow.
 | `semantic_memory` | `semantic_memory_recall`, `memory_add` | workspace-scoped lexical memory recall |
 | `subagent_spawner` | `subagent_spawner` | disposable fresh-context subagent, strict word-capped summary |
 | `artifact_offloader` | — (middleware) | `tools/post-execute` waterfall virtualizing heavy outputs to spill artifacts |
+| `ast_analyzer` | `ast_analyzer` | lightweight AST / dependency-graph scanner (**Architecte**) |
+| `diagram_renderer` | `diagram_renderer` | Mermaid/PlantUML rendering, source always retained (**Architecte**) |
+| `test_runner` | `run_tests`, `coverage_analyzer`, `run_linter` | QA suite: framework detection + coverage + lint (**Testeur**) |
+| `visual_capture` | `visual_capture`, `design_tokens_parser`, `a11y_validator` | headless captures, token flattening, axe-core scans (**Designer**) |
 
 Each directory holds `host.js` (the exact dynamic Host-half source), `fragment.yml` (the cordis row
-for future npm packaging), and a `README.md`.
+for future npm packaging), and a `README.md`. The 4-role orchestration design lives in
+[`docs/orchestration.md`](../docs/orchestration.md).

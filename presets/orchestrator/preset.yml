@@ -1,0 +1,3 @@
+name: Orchestrateur
+description: Pilote l'équipe à 4 rôles (Architecte, Développeur, Testeur, Designer) via des sous-agents à toolset restreint, selon le protocole de hand-off de docs/orchestration.md.
+order: 10

@@ -51,6 +51,14 @@ To make a repo-owned preset authoritative:
 
 Never edit the shipped install beside the deployment config.
 
+### Orchestration à 4 rôles
+
+`presets/orchestrator/` + `presets/{architect,developer,tester,designer}/` décrivent une équipe de
+développement modulaire (Architecte / Développeur / Testeur / Designer) pilotée par un
+Orchestrateur. Le protocole de hand-off (Cadrage → TDD → Code → Validation), les contrats
+d'artefacts et le câblage des sous-agents à toolset restreint (`toolFilter`) sont dans
+[`docs/orchestration.md`](docs/orchestration.md).
+
 ## Skills
 
 Standalone skills live under `skills/<name>/SKILL.md` (frontmatter `name` + `description`, then the

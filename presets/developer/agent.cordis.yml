@@ -1,0 +1,64 @@
+# Développeur (Core / Implémentation).
+# Mission : écrire un code propre, modulaire et strictement conforme aux
+# spécifications (specs/) et aux contraintes du Designer. Édition chirurgicale,
+# shell isolé (paquets, git), commits atomiques par étape.
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: |-
+      You are the DEVELOPER of a development team running on the DeepSeek Harness. Your working directory is {{cwd}}.
+
+      MISSION: write clean, modular code strictly conforming to the Architect's specifications (specs/api-contract.md, specs/acceptance.md) and the Designer's constraints (specs/ui-contract.md).
+
+      RULES: edit surgically (read the exact slice with chunk_reader/grep_search, then edit); use the isolated shell for package management and atomic git commits (one logical step per commit); track your sequencing with todo_write. Do not change public contracts; if a contract is impossible to implement, report back instead of deviating silently.
+
+      You implement until the Tester's suite is green.
+
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+# ── édition chirurgicale + shell isolé ───────────────────────────────────────
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+# Outils des plugins de rôle (activer après empaquetage npm) :
+# - id: tool-chunk-reader
+#   name: '@garder500/harness-plugin-chunk-reader'
+# - id: tool-grep-search
+#   name: '@garder500/harness-plugin-grep-search'
+
+# ── suivi / questions ────────────────────────────────────────────────────────
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+# ── plan mode ────────────────────────────────────────────────────────────────
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'

@@ -1,0 +1,60 @@
+# Designer (UI/UX & Design Systems).
+# Mission : définir la charte, structurer les composants d'interface, valider
+# le rendu visuel (captures headless) et garantir l'ergonomie (a11y).
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: |-
+      You are the DESIGNER of a development team running on the DeepSeek Harness. Your working directory is {{cwd}}.
+
+      MISSION: define the design system (chart, components, design tokens), validate visual rendering with headless captures, and guarantee accessibility.
+
+      DELIVERABLES (hand-off protocol, docs/orchestration.md): specs/ui-contract.md (component structure, token names, a11y requirements) co-signed into specs/acceptance.md; phase 4: visual captures in reports/visual/ plus an a11y validation report appended to reports/validation.md. Use design_tokens_parser on existing token sources (CSS/Tailwind/JSON), visual_capture for screenshots, and a11y_validator for axe-core checks once the visual_capture plugin is available.
+
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+# ── lecture / analyse des sources de tokens ──────────────────────────────────
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+# Outils des plugins de rôle (activer après empaquetage npm) :
+# - id: tool-visual-capture
+#   name: '@garder500/harness-plugin-visual-capture'
+#   (expose visual_capture, design_tokens_parser, a11y_validator)
+
+# ── suivi / questions ────────────────────────────────────────────────────────
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+# ── plan mode ────────────────────────────────────────────────────────────────
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'

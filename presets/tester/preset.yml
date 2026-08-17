@@ -1,0 +1,3 @@
+name: Testeur
+description: Rôle QA & Fiabilité — tests TDD/BDD, exécution de la validation, blocage des commits non conformes, rapports de régression détaillés.
+order: 13
