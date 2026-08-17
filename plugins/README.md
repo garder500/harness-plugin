@@ -35,12 +35,15 @@ form (`index.js` + `package.json`) using the real loader contract (`ctx.tools.re
 
 1. `node scripts/package-plugins.mjs` — regenerates `index.js` + `package.json` per plugin.
 2. Copy `index.js` + `package.json` into `%DSH_HOME%\profiles\web\plugins\<name>\` (baseUrl-relative).
-3. The row in `fragment.yml` (e.g. `name: './plugins/<name>/index.js'`) goes into
-   `cordis.patch.yml` — the host composition, so the tools register globally for every session.
-4. Restart the harness: the packages load at boot and survive restarts.
+3. Add the row from `fragment.yml` to `cordis.patch.yml`. **Critical: NEW rows must use the
+   `insert` patch form** — a plain `- id: … name: …` row is an id-targeted OVERRIDE and is silently
+   skipped when the id does not already exist (the Include warns `patch: entry not found`). Only
+   `- insert: [ … ]` appends new plugin entries.
+4. The profile patch layer is HMR-watched: the plugins hot-apply without a restart. They also
+   survive restarts (the patch is part of the boot composition).
 
-`fragment.yml` holds the exact row; the shipped `cordis-plugin-development` skill documents the
-authoring workflow.
+`fragment.yml` holds the exact `insert` row; the shipped `cordis-plugin-development` skill documents
+the authoring workflow.
 
 ## Current plugins
 

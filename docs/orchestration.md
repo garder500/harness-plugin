@@ -153,13 +153,13 @@ serveur MCP, `web_search` couvre la documentation publique.
 
 ## 6. État du câblage (à jour)
 
-- **Plugins de rôle : MONTÉS AU NIVEAU HÔTE (workspace-wide).** Les 11 plugins sont empaquetés
-  (`index.js` + `package.json` générés par `scripts/package-plugins.mjs`) et montés dans la
-  composition hôte du profil web via `cordis.patch.yml` (rows `./plugins/<name>/index.js`,
-  résolues contre le baseUrl du profil). Après **redémarrage du harness**, ils se chargent au boot :
-  leurs tools sont dans le registre global et visibles par **toutes** les sessions, et survivent aux
-  redémarrages. Vérification possible après restart : l'inventaire des plugins (UI) et
-  `Tool.listTools`.
+- **Plugins de rôle : MONTÉS AU NIVEAU HÔTE (workspace-wide) — ACTIFS.** Les 11 plugins sont
+  empaquetés (`index.js` + `package.json` générés par `scripts/package-plugins.mjs`) et montés dans
+  la composition hôte du profil web via `cordis.patch.yml` — **obligatoirement avec la forme
+  `insert`** (une row `- id: … name: …` seule est un override id-ciblé silencieusement ignoré quand
+  l'id n'existe pas). La couche patch est HMR-watchée : les plugins se chargent à chaud, sans
+  redémarrage, et survivent aux redémarrages. Vérifié en direct : les 15 tools figurent dans
+  `Tool.listTools` de la session.
 - **Presets de rôle : ACTIVÉS.** Les 5 presets (`orchestrator`, `architect`, `developer`, `tester`,
   `designer`) sont installés dans `${DSH_HOME}/.agent-presets/` (root utilisateur, `trust: user`).
   La découverte relit les racines à chaque appel : ils apparaissent au roster **sans redémarrage**.
