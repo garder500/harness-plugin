@@ -1,0 +1,6 @@
+# Cordis row that mounts this plugin once it is packaged as an npm package and
+# installed into the profile's node_modules (current activation is dynamic:
+# cordis_define + cordis_run — see README.md).
+# The plugin exposes two tools: semantic_memory_recall and memory_add.
+- id: semantic-memory
+  name: '@garder500/harness-plugin-semantic-memory'

@@ -34,4 +34,15 @@ activation workflow.
 
 ## Current plugins
 
-None committed yet.
+| Plugin | Tools | Purpose |
+| --- | --- | --- |
+| `tree_inspector` | `tree_inspector` | hierarchical index with estimated token sizes (zero dump) |
+| `grep_search` | `grep_search` | targeted regex filter over one file with context lines |
+| `chunk_reader` | `chunk_reader` | sliding-window file reader (hard 100-line cap) |
+| `scratchpad_manager` | `scratchpad_manager` | persistent `state.md` working memory |
+| `semantic_memory` | `semantic_memory_recall`, `memory_add` | workspace-scoped lexical memory recall |
+| `subagent_spawner` | `subagent_spawner` | disposable fresh-context subagent, strict word-capped summary |
+| `artifact_offloader` | — (middleware) | `tools/post-execute` waterfall virtualizing heavy outputs to spill artifacts |
+
+Each directory holds `host.js` (the exact dynamic Host-half source), `fragment.yml` (the cordis row
+for future npm packaging), and a `README.md`.
