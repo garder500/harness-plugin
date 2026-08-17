@@ -153,6 +153,11 @@ serveur MCP, `web_search` couvre la documentation publique.
 
 ## 6. État du câblage (à jour)
 
+- **Presets de rôle : ACTIVÉS.** Les 5 presets (`orchestrator`, `architect`, `developer`, `tester`,
+  `designer`) sont installés dans `${DSH_HOME}/.agent-presets/` (root utilisateur, `trust: user`).
+  La découverte relit les racines à chaque appel : ils apparaissent au roster **sans redémarrage**.
+  Vérification : `scripts/sync.ps1 -Preset …` + `scripts/validate-presets.mjs` (même dialecte YAML
+  que le loader — `JSON_SCHEMA` + `!!js`).
 - **Actifs dans la session Orchestrateur** (dynamiques, `cordis_define` + `cordis_run`) : les
   plugins `plugins/*` — navigation (`tree_inspector`, `grep_search`, `chunk_reader`), mémoire
   (`scratchpad_manager`, `semantic_memory`), isolation (`subagent_spawner`), middleware

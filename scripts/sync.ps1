@@ -11,6 +11,9 @@
 #   extended when those need direct install paths.
 # .PARAMETER What
 #   Asset kind to sync. Currently only 'presets' is implemented.
+# .PARAMETER Preset
+#   Optional preset ids to sync (repeatable, e.g. -Preset architect -Preset tester).
+#   Omit to sync every preset directory in presets/.
 # .PARAMETER DryRun
 #   Print what would be copied without touching the harness home.
 # .PARAMETER RepoRoot
@@ -19,11 +22,13 @@
 #   Harness home; defaults to $env:DSH_HOME or $HOME/.dsh.
 # .EXAMPLE
 #   ./scripts/sync.ps1 -DryRun
+#   ./scripts/sync.ps1 -Preset architect -Preset tester
 #   ./scripts/sync.ps1
 # #>
 param(
   [ValidateSet('presets')]
   [string]$What = 'presets',
+  [string[]]$Preset = @(),
   [switch]$DryRun,
   [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
   [string]$DshHome = $(if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $HOME '.dsh' })
@@ -47,12 +52,15 @@ function Sync-Presets {
   $copied = @(); $shadowed = @(); $skipped = @()
 
   foreach ($dir in Get-ChildItem $presetsDir -Directory) {
-    $composition = Join-Path $dir.FullName 'agent.cordis.yml'
-    if (-not (Test-Path $composition)) {
-      $skipped += "$($dir.Name) (no agent.cordis.yml)"
+    $id = $dir.Name
+    if ($Preset.Count -gt 0 -and $Preset -notcontains $id) {
       continue
     }
-    $id = $dir.Name
+    $composition = Join-Path $dir.FullName 'agent.cordis.yml'
+    if (-not (Test-Path $composition)) {
+      $skipped += "$id (no agent.cordis.yml)"
+      continue
+    }
     $target = Join-Path $userRoot $id
     if ($ShippedPresetIds -contains $id) {
       $shadowed += $id
