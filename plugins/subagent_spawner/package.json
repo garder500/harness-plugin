@@ -1,0 +1,16 @@
+{
+  "name": "@garder500/harness-plugin-subagent_spawner",
+  "version": "0.1.0",
+  "description": "Disposable fresh-context subagent with a strict word-capped summary",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "*"
+  }
+}

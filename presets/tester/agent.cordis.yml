@@ -35,10 +35,9 @@
   name: '@deepseek-ai/dsh-tool-bash'
   disabled: !!js process.platform === 'win32'
 
-# Outils des plugins de rôle (activer après empaquetage npm) :
-# - id: tool-test-runner
-#   name: '@garder500/harness-plugin-test-runner'
-#   (expose run_tests, coverage_analyzer, run_linter)
+# Outils de rôle (run_tests, coverage_analyzer, run_linter) : montés au niveau
+# HÔTE via les rows `./plugins/*/index.js` de cordis.patch.yml — déjà visibles
+# ici.
 
 # ── suivi / questions ────────────────────────────────────────────────────────
 - id: tool-todo

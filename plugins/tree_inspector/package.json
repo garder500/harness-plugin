@@ -1,0 +1,16 @@
+{
+  "name": "@garder500/harness-plugin-tree_inspector",
+  "version": "0.1.0",
+  "description": "Hierarchical index (directory tree or document TOC) with estimated token sizes",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "*"
+  }
+}

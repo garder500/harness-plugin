@@ -6,13 +6,13 @@
 # composition de l'Orchestrateur PUIS sont filtrés par cet allow-list.
 #
 # NOTE DE CÂBLAGE : les noms listés dans `allow` doivent exister dans la
-# session enfant. Aujourd'hui seuls les tools fournis (read/write/edit/glob/
-# grep/pwsh/todo_write/ask_user_question/web_search) existent côté enfant.
-# Une fois les plugins de rôle empaquetés (packages npm installés dans le
-# profil), ajouter leurs noms aux listes : architect → tree_inspector,
-# ast_analyzer, diagram_renderer ; tester → run_tests, coverage_analyzer,
-# run_linter ; designer → visual_capture, design_tokens_parser, a11y_validator ;
-# developer → chunk_reader, grep_search.
+# session enfant. Les plugins de rôle sont montés au niveau hôte (rows
+# `./plugins/*/index.js` dans cordis.patch.yml), donc leurs tools sont visibles
+# par chaque enfant ; les listes ci-dessous les attribuent par rôle :
+# architect → tree_inspector, ast_analyzer, diagram_renderer, chunk_reader,
+# grep_search ; developer → chunk_reader, grep_search ; tester → run_tests,
+# coverage_analyzer, run_linter ; designer → visual_capture,
+# design_tokens_parser, a11y_validator.
 
 - id: persona
   name: '@deepseek-ai/dsh-persona'
@@ -85,7 +85,7 @@
         enableRunInBackground: false
         maxDepth: provider-managed
         toolFilter:
-          allow: [read, write, glob, grep, pwsh, todo_write, ask_user_question, web_search]
+          allow: [read, write, glob, grep, pwsh, todo_write, ask_user_question, web_search, tree_inspector, ast_analyzer, diagram_renderer, chunk_reader, grep_search]
 
     - id: subagent-developer
       name: '@deepseek-ai/dsh-tool-subagent'
@@ -95,7 +95,7 @@
         enableRunInBackground: false
         maxDepth: provider-managed
         toolFilter:
-          allow: [read, write, edit, glob, grep, pwsh, todo_write, ask_user_question]
+          allow: [read, write, edit, glob, grep, pwsh, todo_write, ask_user_question, chunk_reader, grep_search]
 
     - id: subagent-tester
       name: '@deepseek-ai/dsh-tool-subagent'
@@ -105,7 +105,7 @@
         enableRunInBackground: false
         maxDepth: provider-managed
         toolFilter:
-          allow: [read, write, glob, grep, pwsh, todo_write, ask_user_question]
+          allow: [read, write, glob, grep, pwsh, todo_write, ask_user_question, run_tests, coverage_analyzer, run_linter]
 
     - id: subagent-designer
       name: '@deepseek-ai/dsh-tool-subagent'
@@ -115,7 +115,7 @@
         enableRunInBackground: false
         maxDepth: provider-managed
         toolFilter:
-          allow: [read, write, glob, grep, pwsh, todo_write, ask_user_question]
+          allow: [read, write, glob, grep, pwsh, todo_write, ask_user_question, visual_capture, design_tokens_parser, a11y_validator]
 
     - id: workflow-worker-thread
       name: '@deepseek-ai/dsh-workflow-worker-thread'

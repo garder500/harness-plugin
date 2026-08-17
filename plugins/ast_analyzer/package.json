@@ -1,0 +1,16 @@
+{
+  "name": "@garder500/harness-plugin-ast_analyzer",
+  "version": "0.1.0",
+  "description": "Lightweight AST / dependency-graph scanner",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "*"
+  }
+}

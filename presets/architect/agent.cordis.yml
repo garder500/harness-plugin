@@ -36,13 +36,9 @@
     fetch: false
     searchTimeoutMs: 60000
 
-# Outils des plugins de rôle (activer après empaquetage npm) :
-# - id: tool-tree-inspector
-#   name: '@garder500/harness-plugin-tree-inspector'
-# - id: tool-ast-analyzer
-#   name: '@garder500/harness-plugin-ast-analyzer'
-# - id: tool-diagram-renderer
-#   name: '@garder500/harness-plugin-diagram-renderer'
+# Outils de rôle (tree_inspector, ast_analyzer, diagram_renderer) : montés au
+# niveau HÔTE via les rows `./plugins/*/index.js` de cordis.patch.yml — ils
+# sont donc déjà visibles dans cette session ; aucune row n'est nécessaire ici.
 
 # ── suivi / questions ────────────────────────────────────────────────────────
 - id: tool-todo

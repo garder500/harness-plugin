@@ -153,17 +153,16 @@ serveur MCP, `web_search` couvre la documentation publique.
 
 ## 6. État du câblage (à jour)
 
+- **Plugins de rôle : MONTÉS AU NIVEAU HÔTE (workspace-wide).** Les 11 plugins sont empaquetés
+  (`index.js` + `package.json` générés par `scripts/package-plugins.mjs`) et montés dans la
+  composition hôte du profil web via `cordis.patch.yml` (rows `./plugins/<name>/index.js`,
+  résolues contre le baseUrl du profil). Après **redémarrage du harness**, ils se chargent au boot :
+  leurs tools sont dans le registre global et visibles par **toutes** les sessions, et survivent aux
+  redémarrages. Vérification possible après restart : l'inventaire des plugins (UI) et
+  `Tool.listTools`.
 - **Presets de rôle : ACTIVÉS.** Les 5 presets (`orchestrator`, `architect`, `developer`, `tester`,
   `designer`) sont installés dans `${DSH_HOME}/.agent-presets/` (root utilisateur, `trust: user`).
   La découverte relit les racines à chaque appel : ils apparaissent au roster **sans redémarrage**.
-  Vérification : `scripts/sync.ps1 -Preset …` + `scripts/validate-presets.mjs` (même dialecte YAML
-  que le loader — `JSON_SCHEMA` + `!!js`).
-- **Actifs dans la session Orchestrateur** (dynamiques, `cordis_define` + `cordis_run`) : les
-  plugins `plugins/*` — navigation (`tree_inspector`, `grep_search`, `chunk_reader`), mémoire
-  (`scratchpad_manager`, `semantic_memory`), isolation (`subagent_spawner`), middleware
-  (`artifact_offloader`), et les outils de rôle (`ast_analyzer`, `diagram_renderer`, `test_runner`,
-  `visual_capture`).
-- **Durables multi-sessions** : empaqueter chaque plugin en package npm
-  (`@garder500/harness-plugin-*`), l'installer dans le profil, puis activer les rows correspondantes
-  des presets de rôle (les rows des plugins de rôle sont en commentaire dans les presets tant que
-  les packages n'existent pas).
+  Les allow-lists `toolFilter` de l'Orchestrateur attribuent les outils de rôle à chaque enfant.
+- Les formes dynamiques (`cordis_define`/`cordis_run`) restent disponibles pour l'expérimentation
+  session par session, mais ne sont plus nécessaires : la forme empaquetée est la source durable.

@@ -1,0 +1,16 @@
+{
+  "name": "@garder500/harness-plugin-scratchpad_manager",
+  "version": "0.1.0",
+  "description": "Persistent working-memory block-notes (state.md)",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "*"
+  }
+}

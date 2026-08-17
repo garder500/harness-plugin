@@ -1,0 +1,16 @@
+{
+  "name": "@garder500/harness-plugin-test_runner",
+  "version": "0.1.0",
+  "description": "QA toolset: run_tests, coverage_analyzer, run_linter",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "*"
+  }
+}

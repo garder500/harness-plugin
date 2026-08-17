@@ -19,18 +19,28 @@ registers it.
 
 ```
 plugins/<name>/
-  host.js        # Host-half plugin source (returns a Cordis Plugin)
-  client.js      # Client-half plugin source, when the plugin has browser UI
-  fragment.yml   # the cordis row(s) that mount the plugin
+  host.js        # Host-half source, DYNAMIC form (harness.defineTool/registerTool) — session-only
+  index.js       # PACKAGED form: ESM module (named exports name/inject/apply), host-mountable
+  package.json   # npm identity (@garder500/harness-plugin-<name>)
+  fragment.yml   # the cordis row(s) that mount the plugin (relative to the profile baseUrl)
   README.md      # what it does, IDs, and how to activate it
 ```
 
-## Wiring into the harness
+## Packaging (workspace-wide activation)
 
-A plugin package must be installed into the profile that mounts it, and referenced by exact name in
-a composition row — the `web` profile's wiring goes in `cordis.patch.yml`. See the harness
-`cordis-plugin-development` skill (in `presets/cordis/skills/`) for the full authoring and
-activation workflow.
+Dynamic plugins (`cordis_define`/`cordis_run`) are session-only and die on restart. To make a plugin
+**workspace-wide and durable**, `scripts/package-plugins.mjs` converts `host.js` into the packaged
+form (`index.js` + `package.json`) using the real loader contract (`ctx.tools.register(defineTool(
+…))`, named exports). The activation pipeline:
+
+1. `node scripts/package-plugins.mjs` — regenerates `index.js` + `package.json` per plugin.
+2. Copy `index.js` + `package.json` into `%DSH_HOME%\profiles\web\plugins\<name>\` (baseUrl-relative).
+3. The row in `fragment.yml` (e.g. `name: './plugins/<name>/index.js'`) goes into
+   `cordis.patch.yml` — the host composition, so the tools register globally for every session.
+4. Restart the harness: the packages load at boot and survive restarts.
+
+`fragment.yml` holds the exact row; the shipped `cordis-plugin-development` skill documents the
+authoring workflow.
 
 ## Current plugins
 
@@ -48,6 +58,8 @@ activation workflow.
 | `test_runner` | `run_tests`, `coverage_analyzer`, `run_linter` | QA suite: framework detection + coverage + lint (**Testeur**) |
 | `visual_capture` | `visual_capture`, `design_tokens_parser`, `a11y_validator` | headless captures, token flattening, axe-core scans (**Designer**) |
 
-Each directory holds `host.js` (the exact dynamic Host-half source), `fragment.yml` (the cordis row
-for future npm packaging), and a `README.md`. The 4-role orchestration design lives in
-[`docs/orchestration.md`](../docs/orchestration.md).
+Each directory holds `host.js` (dynamic form), `index.js` + `package.json` (packaged form, generated
+by `scripts/package-plugins.mjs`), `fragment.yml` (the mount row) and a `README.md`. **All 11
+plugins are mounted in the web profile host composition** (`cordis.patch.yml`, relative rows) —
+after a harness restart they load at boot and are visible to every session. The 4-role orchestration
+design lives in [`docs/orchestration.md`](../docs/orchestration.md).
