@@ -33,8 +33,23 @@ The `cordis` preset carries its two skills inside its own directory
 location (`baseUrl`). Keep per-preset skills inside the preset directory; the harness copies the
 whole directory when mounting.
 
-To customize a preset: edit the copy here, then sync the directory to
-`${DSH_HOME}/.agent-presets/<id>/`. Never edit the shipped install beside the deployment config.
+### Making a repo-owned preset mount
+
+The harness discovers presets from two roots, in precedence order: the deployment's SHIPPED root
+(`trust: system`, injected by the CLI) first, then the user root `${DSH_HOME}/.agent-presets`
+(`trust: user`). An earlier root wins a duplicate id, so **the shipped ids `code`, `cordis`,
+`minimal`, and `standard` are reserved by the deployment** — a synced copy with one of those names
+is shadowed and never mounts.
+
+To make a repo-owned preset authoritative:
+
+1. Copy the preset into this repo under a distinct id, e.g. `presets/my-cordis/`, and edit the copy.
+2. Install it with `./scripts/sync.ps1` (mirrors `presets/<id>/` into
+   `${DSH_HOME}/.agent-presets/<id>/`; `-DryRun` previews it).
+3. The roster picks the user-root copy up on next discovery (no restart needed), and it wins over
+   nothing — its id is unique.
+
+Never edit the shipped install beside the deployment config.
 
 ## Skills
 
