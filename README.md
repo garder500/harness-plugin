@@ -1,5 +1,7 @@
 # harness-plugin
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Owned assets for the DeepSeek Harness: **Skills**, **MCP connections**, **agent Presets**, and **Plugins**.
 
 This repository is the source of truth for the user-owned assets that extend the harness running
@@ -87,7 +89,16 @@ wired into a composition as a row. `plugins/` owns the source of custom plugins,
 that register them. Dynamic plugins created through the runtime toolset are ephemeral — saving their
 source here is how they become durable. See [`plugins/README.md`](plugins/README.md).
 
+## License
+
+This repository is open source under the **MIT License** — see [`LICENSE`](LICENSE) (Copyright
+(c) 2026 Garder500).
+
 ## Attribution
 
-The preset files in `presets/` are copies of the DeepSeek Harness shipped configuration
-(`apps/cli/config/agent-presets`), MIT licensed, Copyright (c) 2026 DeepSeek.
+Most of this repository is original work licensed MIT (see `LICENSE`). The exception is the shipped
+preset copies under `presets/{code,cordis,minimal,standard}/` (plus the two skills they carry),
+which are verbatim copies of the DeepSeek Harness shipped configuration
+(`apps/cli/config/agent-presets`) — **MIT licensed, Copyright (c) 2026 DeepSeek**. They are kept
+here so they remain installable as the "source of truth" while the deployment upgrades overwrite
+their own copies. See the header comment in each `presets/<id>/agent.cordis.yml` for provenance.
